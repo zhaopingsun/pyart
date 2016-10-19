@@ -124,8 +124,12 @@ class NEXRADLevel3File(object):
 
         # Text header
         # Format of Text header is SDUSXX KYYYY DDHHMM\r\r\nAAABBB\r\r\n
-        self.text_header = buf[:30]
-        bpos = 30       # current reading position in buffer
+        # Sometime additional padding is present before the Text header
+        record_padding = buf.find(b'SDUS')
+        if record_padding == -1:
+            raise ValueError('Not a valid NEXRAD Level 3 file.')
+        self.text_header = buf[:30 + record_padding]
+        bpos = 30 + record_padding      # current reading position in buffer
 
         # Read and decode 18 byte Message Header Block
         self.msg_header = _unpack_from_buf(buf, bpos, MESSAGE_HEADER)
@@ -260,7 +264,7 @@ class NEXRADLevel3File(object):
 
         elif msg_code in [135]:
             mdata = np.ma.array(self.raw_data - 2, mask=self.raw_data <= 1)
-            mdata[self.raw_data >= 128] -= 128
+            mdata[self.raw_data >= 128] -= np.uint8(128)
 
         else:
             assert msg_code in [34]

@@ -27,8 +27,8 @@ import warnings
 import numpy as np
 import scipy.ndimage as ndimage
 
-from ..config import get_metadata
-from ._common_dealias import _parse_fields, _parse_gatefilter
+from ..config import get_metadata, get_fillvalue
+from ._common_dealias import _parse_fields, _parse_gatefilter, _set_limits
 from ._common_dealias import _parse_rays_wrap_around, _parse_nyquist_vel
 from ._fast_edge_finder import _fast_edge_finder
 
@@ -45,22 +45,16 @@ from ._fast_edge_finder import _fast_edge_finder
 #   excluded by the filter are unfolded using a more elemenary approach.  In
 #   this manner the filter could define only "good" gates which establish the
 #   folding pattern which is then applied to all gates.
-# * Either each sweep is assumed to be 'centered' or the largest region
-#   is assumed to not be folded.  In some cases this may not be true and
-#   all the gates in the corrected sweep should be unfolded after the routine
-#   completes.  By how much the sweep should be unfolded would need to be
-#   determined, perhapes by comparing against sweeps above and below the
-#   current sweep, or by comparing to an atmospheric sounding.
 # * Improve perfornace by implementing a priority queue in the _EdgeTracker
 #   object. See comments in the class for details.
 
 
 def dealias_region_based(
-        radar, interval_splits=3, interval_limits=None,
+        radar, ref_vel_field=None, interval_splits=3, interval_limits=None,
         skip_between_rays=100, skip_along_ray=100, centered=True,
-        nyquist_vel=None, check_nyquist_uniform=True,
-        gatefilter=False, rays_wrap_around=None,
-        keep_original=False, vel_field=None, corr_vel_field=None, **kwargs):
+        nyquist_vel=None, check_nyquist_uniform=True, gatefilter=False,
+        rays_wrap_around=None, keep_original=False, set_limits=True,
+        vel_field=None, corr_vel_field=None, **kwargs):
     """
     Dealias Doppler velocities using a region based algorithm.
 
@@ -73,6 +67,12 @@ def dealias_region_based(
     ----------
     radar : Radar
         Radar object containing Doppler velocities to dealias.
+    ref_vel_field : str or None, optional
+         Field in radar containing a reference velocity field used to anchor
+         the unfolded velocities once the algorithm completes. Typically this
+         field is created by simulating the radial velocities from wind data
+         from an atmospheric sonding using
+         :py:func:`pyart.util.simulated_vel_from_profile`.
     interval_splits : int, optional
         Number of segments to split the nyquist interval into when finding
         regions of similar velocity.  More splits creates a larger number of
@@ -121,6 +121,9 @@ def dealias_region_based(
         where the dealiasing procedure fails or was not applied. False
         does not replacement and these gates will be masked in the corrected
         velocity field.
+    set_limits : bool, optional
+        True to set valid_min and valid_max elements in the returned
+        dictionary.  False will not set these dictionary elements.
     vel_field : str, optional
         Field in radar to use as the Doppler velocities during dealiasing.
         None will use the default field name from the Py-ART configuration
@@ -141,6 +144,12 @@ def dealias_region_based(
     gatefilter = _parse_gatefilter(gatefilter, radar, **kwargs)
     rays_wrap_around = _parse_rays_wrap_around(rays_wrap_around, radar)
     nyquist_vel = _parse_nyquist_vel(nyquist_vel, radar, check_nyquist_uniform)
+
+    # parse ref_vel_field
+    if ref_vel_field is None:
+        ref_vdata = None
+    else:
+        ref_vdata = radar.fields[ref_vel_field]['data']
 
     # exclude masked and invalid velocity gates
     gatefilter.exclude_masked(vel_field)
@@ -209,9 +218,20 @@ def dealias_region_based(
         nwrap = np.take(region_tracker.unwrap_number, labels)
         scorr += nwrap * nyquist_interval
 
+        # anchor unfolded velocities against reference velocity
+        if ref_vdata is not None:
+            sref = ref_vdata[sweep_slice]
+            mean_diff = (sref - scorr).mean()
+            global_fold = round(mean_diff / nyquist_interval)
+            if global_fold != 0:
+                scorr += global_fold * nyquist_interval
+
+    # fill_value from the velocity dictionary if present
+    fill_value = radar.fields[vel_field].get('_FillValue', get_fillvalue())
+
     # mask filtered gates
     if np.any(gfilter):
-        data = np.ma.array(data, mask=gfilter)
+        data = np.ma.array(data, mask=gfilter, fill_value=fill_value)
 
     # restore original values where dealiasing not applied
     if keep_original:
@@ -220,6 +240,12 @@ def dealias_region_based(
     # return field dictionary containing dealiased Doppler velocities
     corr_vel = get_metadata(corr_vel_field)
     corr_vel['data'] = data
+    corr_vel['_FillValue'] = fill_value
+
+    if set_limits:
+        # set valid_min and valid_max in corr_vel
+        _set_limits(data, nyquist_vel, corr_vel)
+
     return corr_vel
 
 
@@ -429,7 +455,7 @@ class _EdgeTracker(object):
                  nnodes):
         """ initialize """
 
-        nedges = len(indices[0]) / 2
+        nedges = int(len(indices[0]) / 2)
 
         # node number and different in sum for each edge
         self.node_alpha = np.zeros(nedges, dtype=np.int32)

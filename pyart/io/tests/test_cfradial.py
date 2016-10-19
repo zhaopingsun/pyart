@@ -7,7 +7,7 @@ import warnings
 import numpy as np
 from numpy.ma.core import MaskedArray
 from numpy.testing import assert_array_equal, assert_almost_equal
-from numpy.testing import assert_raises
+from numpy.testing import assert_raises, assert_warns
 import netCDF4
 
 import pyart
@@ -309,6 +309,19 @@ def test_write_ppi_U1():
         dset.close()
 
 
+def test_write_ppi_unknown_instrument_parameter_element():
+    # CF/Radial example file -> Radar object -> netCDF file
+    with pyart.testing.InTemporaryDirectory():
+        tmpfile = 'tmp_ppi_unknonw_ip.nc'
+        radar = pyart.io.read_cfradial(pyart.testing.CFRADIAL_PPI_FILE)
+        radar.instrument_parameters['foobar'] = {'data': np.zeros(40)}
+        assert_warns(UserWarning, pyart.io.write_cfradial, tmpfile, radar)
+        ref = netCDF4.Dataset(pyart.testing.CFRADIAL_PPI_FILE)
+        dset = netCDF4.Dataset(tmpfile)
+        check_dataset_to_ref(dset, ref)
+        dset.close()
+
+
 def test_write_rhi():
     # CF/Radial example file -> Radar object -> netCDF file
     with pyart.testing.InTemporaryDirectory():
@@ -333,7 +346,12 @@ def test_write_ppi_arm_time_vars():
 
         base_time = dset.variables['base_time']
         assert base_time[:] == 1305888856
-        assert base_time.string == '20-May-2011,10:54:16 GMT'
+        # The month is abbreviated according to the current locale, for
+        # en_US the complete string is 20-May-2011,10:54:16 GMT.
+        # In order to support other locales test only the non-locale dependent
+        # portions of the string.
+        assert base_time.string.startswith('20-')
+        assert base_time.string.endswith('2011,10:54:16 GMT')
 
         time_offset = dset.variables['time_offset']
         assert time_offset.units == 'seconds since 2011-05-20 10:54:08'
@@ -460,7 +478,7 @@ def test_delay_field_loading():
     radar = pyart.io.read_cfradial(
         pyart.testing.CFRADIAL_PPI_FILE, delay_field_loading=True)
     assert isinstance(radar.fields['reflectivity_horizontal'],
-                      pyart.io.lazydict.LazyLoadDict)
+                      pyart.lazydict.LazyLoadDict)
     data = radar.fields['reflectivity_horizontal']['data']
     assert isinstance(data, MaskedArray)
     assert data.shape == (40, 42)

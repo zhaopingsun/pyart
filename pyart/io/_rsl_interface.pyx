@@ -29,7 +29,7 @@ cimport _rsl_h
 ctypedef unsigned short Range
 import numpy as np
 cimport numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 _RSL_VERSION_STR = _rsl_h._RSL_VERSION_STR
@@ -323,6 +323,15 @@ cdef class _RslRay:
         s = self
         full_seconds, fractional_seconds = divmod(s.sec, 1)
         microseconds = int(fractional_seconds * 1e6)
+        # Some UF writers incorrectly specify midnight as 24:00:00 rather
+        # than 00:00:00.  Handle this case explicitly
+        if s.hour == 24:
+            s.hour = 23
+            s.minute = 0
+            full_seconds = 0
+            dt = datetime(s.year, s.month, s.day, s.hour, s.minute,
+                          full_seconds, microseconds)
+            return dt + timedelta(seconds=1)
         return datetime(s.year, s.month, s.day, s.hour, s.minute,
                         int(full_seconds), microseconds)
 
@@ -962,7 +971,10 @@ cdef class _RslVolume:
                     nv_data[ray_count + j] = (ray.h.wavelength *
                                               ray.h.prf / 4.0)
 
-                pr_data[ray_count + j] = 1. / ray.h.prf
+                if ray.h.prf == 0:
+                    pr_data[ray_count + j] = -999.
+                else:
+                    pr_data[ray_count + j] = 1. / ray.h.prf
                 ur_data[ray_count + j] = ray.h.unam_rng * 1000.0
             ray_count += nrays
         return pm_data, nv_data, pr_data, ur_data

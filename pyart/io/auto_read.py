@@ -17,7 +17,7 @@ import gzip
 
 import netCDF4
 
-from .rsl import read_rsl
+from .rsl import read_rsl, _RSL_AVAILABLE
 from .mdv_radar import read_mdv
 from .cfradial import read_cfradial
 from .sigmet import read_sigmet
@@ -227,6 +227,11 @@ def determine_filetype(filename):
     # NEXRAD LEVEL 3 begin with SDUSXX KXXX
     nexrad_l3_signature = b'SDUS'
     if begin[:4] == b'SDUS':
+        return "NEXRADL3"
+
+    # NEXRAD LEVEL 3 with NOAAPORT record seperator
+    # Start of heading (x01) \r\r\nXXX \r\r\nSDUSXX KXXX
+    if begin[:4] == b'\x01\r\r\n':
         return "NEXRADL3"
 
     # Other files should be read with read_rsl

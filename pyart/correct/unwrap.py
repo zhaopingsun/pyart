@@ -23,8 +23,8 @@ from __future__ import print_function
 
 import numpy as np
 
-from ..config import get_metadata
-from ._common_dealias import _parse_fields, _parse_gatefilter
+from ..config import get_metadata, get_fillvalue
+from ._common_dealias import _parse_fields, _parse_gatefilter, _set_limits
 from ._common_dealias import _parse_rays_wrap_around, _parse_nyquist_vel
 
 from ._unwrap_1d import unwrap_1d
@@ -35,8 +35,8 @@ from ._unwrap_3d import unwrap_3d
 def dealias_unwrap_phase(
         radar, unwrap_unit='sweep', nyquist_vel=None,
         check_nyquist_uniform=True, gatefilter=False,
-        rays_wrap_around=None, keep_original=False, vel_field=None,
-        corr_vel_field=None, skip_checks=False, **kwargs):
+        rays_wrap_around=None, keep_original=False, set_limits=True,
+        vel_field=None, corr_vel_field=None, skip_checks=False, **kwargs):
     """
     Dealias Doppler velocities using multi-dimensional phase unwrapping.
 
@@ -79,6 +79,9 @@ def dealias_unwrap_phase(
         where the dealiasing procedure fails or was not applied. False
         does not replacement and these gates will be masked in the corrected
         velocity field.
+    set_limits : bool, optional
+        True to set valid_min and valid_max elements in the returned
+        dictionary.  False will not set these dictionary elements.
     vel_field : str, optional
         Field in radar to use as the Doppler velocities during dealiasing.
         None will use the default field name from the Py-ART configuration
@@ -143,9 +146,13 @@ def dealias_unwrap_phase(
                    "'ray', 'sweep', or 'volume'")
         raise ValueError(message)
 
+    # fill_value from the velocity dictionary if present
+    fill_value = radar.fields[vel_field].get(
+        '_FillValue', get_fillvalue())
+
     # mask filtered gates
     if np.any(gfilter):
-        data = np.ma.array(data, mask=gfilter)
+        data = np.ma.array(data, mask=gfilter, fill_value=fill_value)
 
     # restore original values where dealiasing not applied
     if keep_original:
@@ -154,6 +161,11 @@ def dealias_unwrap_phase(
     # return field dictionary containing dealiased Doppler velocities
     corr_vel = get_metadata(corr_vel_field)
     corr_vel['data'] = data
+    corr_vel['_FillValue'] = fill_value
+
+    if set_limits:
+        # set valid_min and valid_max in corr_vel
+        _set_limits(data, nyquist_vel, corr_vel)
     return corr_vel
 
 

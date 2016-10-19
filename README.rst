@@ -33,6 +33,22 @@ Important Links
 - Issue Tracker: https://github.com/ARM-DOE/pyart/issues
 
 
+Citing
+======
+
+If you use the Python ARM Radar Toolkit (Py-ART) to prepare a publication
+please cite:
+
+    Helmus, J.J. & Collis, S.M., (2016). The Python ARM Radar Toolkit
+    (Py-ART), a Library for Working with Weather Radar Data in the Python
+    Programming Language. Journal of Open Research Software. 4(1), p.e25.
+    DOI: http://doi.org/10.5334/jors.119
+
+Py-ART implements many published scientific methods which should *also* be
+cited if you make use of them.  Refer to the **References** section in the
+documentation of the functions used for information on these citations.
+
+
 Install
 =======
 
@@ -43,11 +59,11 @@ the latest release.  To do this you must download and install
 Then use the following command in a terminal or command prompt to install
 the latest version of Py-ART::
 
-    conda install -c https://conda.anaconda.org/jjhelmus pyart
+    conda install -c conda-forge arm_pyart
 
 To update an older version of Py-ART to the latest release use::
 
-    conda update -c https://conda.anaconda.org/jjhelmus pyart
+    conda update -c conda-forge arm_pyart
 
 If you do not wish to use Anaconda or Miniconda as a Python environment or want
 to use the latest, unreleased version of Py-ART see the section below on 
@@ -109,14 +125,14 @@ Other related open source software for working with weather radar data:
 Dependencies
 ============
 
-Py-ART is tested to work under Python 2.6, 2.7, 3.3, and 3.4.
+Py-ART is tested to work under Python 2.7, 3.4, and 3.5.
 
 The required dependencies to install Py-ART in addition to Python are:
 
-* `NumPy <http://www.scipy.org>`_ 1.6+
-* `SciPy <http://www.scipy.org>`_ 0.10+
-* `matplotlib <http://matplotlib.org/>`_ 1.1.0+
-* `netCDF4 <https://github.com/Unidata/netcdf4-python>`_ 1.0.2+ 
+* `NumPy <http://www.scipy.org>`_
+* `SciPy <http://www.scipy.org>`_
+* `matplotlib <http://matplotlib.org/>`_
+* `netCDF4 <https://github.com/Unidata/netcdf4-python>`_
 
 As well as a working C/C++ compiler.  A Fortran compiler is required for some
 optional modules. An easy method to install these dependencies is by using a 
@@ -162,8 +178,10 @@ functionality is available of the following modules are installed.
 
 * `nose <http://nose.readthedocs.org/en/latest/>`_.  
   Required to run the Py-ART unit tests.
- 
 
+* `gdal <https://pypi.python.org/pypi/GDAL/>`_.
+  Required to output GeoTIFFs from `Grid` objects.
+ 
 Installing from source
 ======================
 

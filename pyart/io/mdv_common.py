@@ -18,6 +18,7 @@ from __future__ import print_function
 # Code is adapted from Nitin Bharadwaj's Matlab code
 
 import struct
+import bz2
 import gzip
 import zlib
 from io import BytesIO
@@ -25,7 +26,7 @@ import datetime
 
 import numpy as np
 
-from .common import radar_coords_to_cart
+from ..core.transforms import antenna_to_cartesian
 
 # mapping from MDV name space to CF-Radial name space
 MDV_METADATA_MAP = {'instrument_name': 'data_set_source',
@@ -71,8 +72,14 @@ COMPRESSION_BZIP = 4  # bzip2
 COMPRESSION_GZIP = 5  # Lempel-Ziv in gzip format
 
 #  ***************** COMPRESSION CODE *******************
-TA_NOT_COMPRESSED = 791621423
-GZIP_COMPRESSED = 4160223223
+TA_NOT_COMPRESSED = 0x2f2f2f2f
+GZIP_COMPRESSED = 0xf7f7f7f7
+GZIP_NOT_COMPRESSED = 0xf8f8f8f8
+BZIP_COMPRESSED = 0xf3f3f3f3
+BZIP_NOT_COMPRESSED = 0xf4f4f4f4
+ZLIB_COMPRESSED = 0xf5f5f5f5
+ZLIB_NOT_COMPRESSED = 0xf6f6f6f6
+RL8_COMPRESSION = 0xfe0103fd
 
 #  ***************** TRANSFORM *******************
 DATA_TRANSFORM_NONE = 0  # None
@@ -565,17 +572,24 @@ class MdvFile(object):
                 raise NotImplementedError('encoding: ', encoding_type)
 
             # decompress the level data
-            if compr_info['magic_cookie'] == 0xf7f7f7f7:
+            if compr_info['magic_cookie'] == GZIP_COMPRESSED:
                 cd_fobj = BytesIO(compr_data)
                 gzip_file_handle = gzip.GzipFile(fileobj=cd_fobj)
                 decompr_data = gzip_file_handle.read(struct.calcsize(fmt))
                 gzip_file_handle.close()
-            elif compr_info['magic_cookie'] == 0xf5f5f5f5:
+            elif compr_info['magic_cookie'] == ZLIB_COMPRESSED:
                 decompr_data = zlib.decompress(compr_data)
-            elif compr_info['magic_cookie'] == 0xf6f6f6f6:
-                # ZLIB_NOT_COMPRESSED
+            elif compr_info['magic_cookie'] == BZIP_COMPRESSED:
+                decompr_data = bz2.decompress(compr_data)
+            elif compr_info['magic_cookie'] == TA_NOT_COMPRESSED:
                 decompr_data = compr_data
-            elif compr_info['magic_cookie'] == 0xfe0103fd:
+            elif compr_info['magic_cookie'] == GZIP_NOT_COMPRESSED:
+                decompr_data = compr_data
+            elif compr_info['magic_cookie'] == ZLIB_NOT_COMPRESSED:
+                decompr_data = compr_data
+            elif compr_info['magic_cookie'] == BZIP_NOT_COMPRESSED:
+                decompr_data = compr_data
+            elif compr_info['magic_cookie'] == RL8_COMPRESSION:
                 # Run length encoding of 8-bit data
                 # Compression info is in a different order, namely
                 # int32 : RL8_FLAG (0xfe0103fd)
@@ -587,14 +601,7 @@ class MdvFile(object):
                 decompr_size = compr_info['nbytes_coded']
                 decompr_data = _decode_rle8(compr_data, key, decompr_size)
             else:
-                raise NotImplementedError('unsupported compression mode')
-                # With sample data it should be possible to write
-                # decompressor for other modes, the compression magic
-                # cookies for these modes are:
-                # 0x2f2f2f2f : TA_NOT_COMPRESSED
-                # 0xf8f8f8f8 : GZIP_NOT_COMPRSSED
-                # 0xf3f3f3f3 : BZIP_COMPRESSED
-                # 0xf4f4f4f4 : BZIP_NOT_COMPRESSED
+                raise NotImplementedError('unknown compression mode')
 
             # read the decompressed data, reshape and mask
             sw_data = np.fromstring(decompr_data, np_form).astype('float32')
@@ -1089,10 +1096,14 @@ class MdvFile(object):
         if self.field_headers[0]['proj_type'] == PROJ_RHI_RADAR:
             el_deg = grid_miny + np.arange(nrays) * grid_dy
             az_deg = self.vlevel_headers[0]['level'][0:nsweeps]
-
-        if self.field_headers[0]['proj_type'] == PROJ_POLAR_RADAR:
+        elif self.field_headers[0]['proj_type'] == PROJ_POLAR_RADAR:
             az_deg = grid_miny + np.arange(nrays) * grid_dy
             el_deg = self.vlevel_headers[0]['level'][0:nsweeps]
+        else:
+            proj_type = self.field_headers[0]['proj_type']
+            message = ("Unsupported projection type: %i, " % (proj_type) +
+                       "is MDV file in antenna coordinates?")
+            raise NotImplementedError(message)
 
         return az_deg, range_km, el_deg
 
@@ -1113,7 +1124,7 @@ class MdvFile(object):
             ele = np.array(ele, dtype=np.float64)
             for aznum in range(nsweeps):
                 azg = np.ones(rg.shape, dtype=np.float64) * az_deg[aznum]
-                x, y, z = radar_coords_to_cart(rg, azg, ele)
+                x, y, z = antenna_to_cartesian(rg, azg, ele)
                 zz[aznum, :, :] = z
                 xx[aznum, :, :] = x
                 yy[aznum, :, :] = y
@@ -1124,7 +1135,7 @@ class MdvFile(object):
             azg = np.array(azg, dtype=np.float64)
             for elnum in range(nsweeps):
                 ele = np.ones(rg.shape, dtype=np.float64) * el_deg[elnum]
-                x, y, z = radar_coords_to_cart(rg, azg, ele)
+                x, y, z = antenna_to_cartesian(rg, azg, ele)
                 zz[elnum, :, :] = z
                 xx[elnum, :, :] = x
                 yy[elnum, :, :] = y

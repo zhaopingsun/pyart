@@ -22,9 +22,10 @@ def test_radarmapdisplay_ppi(outfile=None):
     display.plot_ppi_map(
         'reflectivity_horizontal', 0, colorbar_flag=True,
         title="Fancy PPI Map", mask_tuple=('reflectivity_horizontal', -100),
-        resolution='c', min_lon=-100, max_lon=-93, min_lat=33, max_lat=38)
+        resolution='c', min_lon=-100, max_lon=-93, min_lat=33, max_lat=38,
+        mask_outside=True)
     display.plot_point(-95, 35, label_text='TEXT')
-    display.plot_range_ring(30)
+    display.plot_range_rings([15, 30])
     display.plot_line_geo(np.array([-95, -95]), np.array([33, 38]))
     if outfile:
         fig.savefig(outfile)
@@ -53,6 +54,16 @@ def test_error_raising():
     display = pyart.graph.RadarMapDisplay(radar, shift=(0.1, 0.0))
     # no basemap
     assert_raises(ValueError, display.plot_range_ring, 10)
+
+
+@skipif(not pyart.graph.radarmapdisplay._BASEMAP_AVAILABLE)
+def test_radardisplay_cylindrical_proj_error():
+    radar = pyart.io.read_cfradial(pyart.testing.CFRADIAL_PPI_FILE)
+    display = pyart.graph.RadarMapDisplay(radar)
+    assert_raises(
+        ValueError,
+        display.plot_ppi_map, 'reflectivity_horizontal', projection='cyl',
+        resolution='c')
 
 
 if __name__ == "__main__":

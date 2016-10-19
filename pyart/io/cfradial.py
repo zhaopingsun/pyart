@@ -33,7 +33,7 @@ import netCDF4
 from ..config import FileMetadata
 from .common import stringarray_to_chararray, _test_arguments
 from ..core.radar import Radar
-from .lazydict import LazyLoadDict
+from ..lazydict import LazyLoadDict
 
 
 # Variables and dimensions in the instrument_parameter convention and
@@ -189,7 +189,7 @@ def read_cfradial(filename, field_names=None, additional_metadata=None,
         ray_angle_res = None
 
     # first sweep mode determines scan_type
-    mode = str(netCDF4.chartostring(sweep_mode['data'][0]))
+    mode = netCDF4.chartostring(sweep_mode['data'][0])[()].decode('utf-8')
 
     # options specified in the CF/Radial standard
     if mode == 'rhi':
@@ -368,10 +368,20 @@ class _NetCDFVariableDataExtractor(object):
 
     def __call__(self):
         """ Return an array containing data from the stored variable. """
+        data = self.ncvar[:]
+        if data is np.ma.masked:
+            # If the data is a masked scalar, MaskedConstant is returned by
+            # NetCDF4 version 1.2.3+. This object does not preserve the dtype
+            # and fill_value of the original NetCDF variable and causes issues
+            # in Py-ART.
+            # Rather we create a masked array with a single masked value
+            # with the correct dtype and fill_value.
+            self.ncvar.set_auto_mask(False)
+            data = np.ma.array(self.ncvar[:], mask=True)
         # Use atleast_1d to force the array to be at minimum one dimensional,
         # some version of netCDF return scalar or scalar arrays for scalar
         # NetCDF variables.
-        return np.atleast_1d(self.ncvar[:])
+        return np.atleast_1d(data)
 
 
 def _unpack_variable_gate_field_dic(
@@ -548,9 +558,13 @@ def write_cfradial(filename, radar, format='NETCDF4', time_reference=None,
         for k in radar.instrument_parameters.keys():
             if k in _INSTRUMENT_PARAMS_DIMS:
                 dim = _INSTRUMENT_PARAMS_DIMS[k]
+                _create_ncvar(radar.instrument_parameters[k], dataset, k, dim)
             else:
-                dim = ()
-            _create_ncvar(radar.instrument_parameters[k], dataset, k, dim)
+                # Do not try to write instrument parameter whose dimensions are
+                # not known, rather issue a warning and skip the parameter
+                message = ("Unknown instrument parameter: %s, " % (k) +
+                           "not written to file.")
+                warnings.warn(message)
 
     # radar_calibration variables
     if radar.radar_calibration is not None and radar.radar_calibration != {}:

@@ -8,9 +8,12 @@ Reading of Universal format (UF) files
     :toctree: generated/
 
     read_uf
+    _get_scan_type
     _get_instrument_parameters
 
 """
+
+import warnings
 
 import numpy as np
 from netCDF4 import date2num
@@ -30,6 +33,7 @@ _UF_SWEEP_MODES = {
     5: 'target',
     6: 'manual',
     7: 'idle',
+    8: 'ppi',   # RadX used this to indicate surveillance PPI scans
 }
 
 _SWEEP_MODE_STR = {
@@ -140,8 +144,8 @@ def read_uf(filename, field_names=None, additional_metadata=None,
     sweep_number = filemetadata('sweep_number')
     sweep_number['data'] = np.arange(ufile.nsweeps, dtype='int32')
 
-    # sweep_type
-    scan_type = _UF_SWEEP_MODES[first_ray.mandatory_header['sweep_mode']]
+    # scan_type
+    scan_type = _get_scan_type(first_ray)
 
     # sweep_mode
     sweep_mode = filemetadata('sweep_mode')
@@ -190,6 +194,16 @@ def read_uf(filename, field_names=None, additional_metadata=None,
         instrument_parameters=instrument_parameters)
 
 
+def _get_scan_type(ufray):
+    """ Ruturn the scan type of a UF ray. """
+    uf_sweep_mode = ufray.mandatory_header['sweep_mode']
+    if uf_sweep_mode in _UF_SWEEP_MODES:
+        return _UF_SWEEP_MODES[uf_sweep_mode]
+    else:
+        warnings.warn('Unknown sweep mode, defaulting to ppi')
+        return 'ppi'
+
+
 def _get_instrument_parameters(ufile, filemetadata):
     """ Return a dictionary containing instrument parameters. """
 
@@ -205,7 +219,11 @@ def _get_instrument_parameters(ufile, filemetadata):
     beam_width_v = field_header['beam_width_v'] / 64.
     bandwidth = field_header['bandwidth'] / 16. * 1.e6
     wavelength_cm = field_header['wavelength_cm'] / 64.
-    wavelength_hz = _LIGHT_SPEED / (wavelength_cm / 100.)
+    if wavelength_cm == 0:
+        warnings.warn('Invalid wavelength, frequency set to default value.')
+        wavelength_hz = 9999.0
+    else:
+        wavelength_hz = _LIGHT_SPEED / (wavelength_cm / 100.)
 
     # radar_beam_width_h
     radar_beam_width_h = filemetadata('radar_beam_width_h')

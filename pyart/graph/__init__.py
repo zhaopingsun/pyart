@@ -15,7 +15,7 @@ Plotting radar data
 
     RadarDisplay
     RadarMapDisplay
-    RadarDisplay_Airborne
+    AirborneRadarDisplay
 
 Plotting grid data
 ==================
@@ -29,7 +29,7 @@ Plotting grid data
 
 from .radardisplay import RadarDisplay
 from . import cm
-from .radardisplay_airborne import RadarDisplay_Airborne
+from .radardisplay_airborne import AirborneRadarDisplay
 from .gridmapdisplay import GridMapDisplay
 from .radarmapdisplay import RadarMapDisplay
 

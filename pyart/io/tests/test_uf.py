@@ -1,12 +1,13 @@
 """ Unit Tests for Py-ART's io/uf.py and io/uffile.py modules. """
 
+from datetime import datetime
 try:
     from StringIO import StringIO
 except ImportError:
     from io import BytesIO as StringIO
 
 import numpy as np
-from numpy.testing import assert_raises, assert_almost_equal
+from numpy.testing import assert_raises, assert_almost_equal, assert_warns
 
 import pyart
 from pyart.io.uffile import UFFile, UFRay
@@ -116,10 +117,48 @@ def test_nyquist_vel():
     assert ufile.get_nyquists() is None
 
 
-def test_polrization():
+def test_datetime():
+    ufile = UFFile(pyart.testing.UF_FILE)
+    ray = ufile.rays[0]
+    assert ray.get_datetime() == datetime(2011, 5, 20, 10, 54, 16)
+
+    # test case where midnight is incorrectly represented as 24:00:00
+    ray.mandatory_header['hour'] = 24
+    ray.mandatory_header['minute'] = 0
+    ray.mandatory_header['second'] = 0
+    assert ray.get_datetime() == datetime(2011, 5, 21, 0, 0, 0)
+
+
+def test_polarization():
     ufile = UFFile(pyart.testing.UF_FILE)
     ufile.rays[0].field_headers[0]['polarization'] = 99
     assert ufile.get_sweep_polarizations()[0] == 'elliptical'
+
+
+def test_frequency():
+    ufile = UFFile(pyart.testing.UF_FILE)
+    filemetadata = pyart.config.FileMetadata('uf')
+
+    ip = pyart.io.uf._get_instrument_parameters(ufile, filemetadata)
+    assert 'frequency' in ip
+    assert_almost_equal(ip['frequency']['data'][0], 9.69026150e+09, -3)
+
+    # An invalid wavelength should throw a warning
+    ufile.rays[0].field_headers[0]['wavelength_cm'] = 0
+    assert_warns(UserWarning,
+                 pyart.io.uf._get_instrument_parameters, ufile, filemetadata)
+
+
+def test_scan_type():
+    ufile = UFFile(pyart.testing.UF_FILE)
+    ufray = ufile.rays[0]
+
+    scan_type = pyart.io.uf._get_scan_type(ufray)
+    assert scan_type == 'ppi'
+
+    # An invalid scan mode should throw a warning
+    ufray.mandatory_header['sweep_mode'] = 99
+    assert_warns(UserWarning, pyart.io.uf._get_scan_type, ufray)
 
 
 def test_skip_field():
