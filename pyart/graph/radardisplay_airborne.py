@@ -137,7 +137,7 @@ class AirborneRadarDisplay(RadarDisplay):
             axislabels=(None, None), axislabels_flag=True,
             colorbar_flag=True, colorbar_label=None,
             colorbar_orient='vertical', edges=True, filter_transitions=True,
-            ax=None, fig=None, gatefilter=None, **kwargs):
+            ax=None, fig=None, gatefilter=None, raster=False, **kwargs):
         """
         Plot a sweep as a grid.
 
@@ -211,12 +211,17 @@ class AirborneRadarDisplay(RadarDisplay):
             Axis to plot on. None will use the current axis.
         fig : Figure
             Figure to add the colorbar to. None will use the current figure.
+        raster : bool
+            False by default.  Set to true to render the display as a raster
+            rather than a vector in call to pcolormesh.  Saves time in plotting
+            high resolution data over large areas.  Be sure to set the dpi
+            of the plot for your application if you save it as a vector format
+            (i.e., pdf, eps, svg).
 
         """
         # parse parameters
         ax, fig = common.parse_ax_fig(ax, fig)
-        norm, vmin, vmax = common.parse_norm_vmin_vmax(
-            norm, self._radar, field, vmin, vmax)
+        vmin, vmax = common.parse_vmin_vmax(self._radar, field, vmin, vmax)
         cmap = common.parse_cmap(cmap, field)
 
         # get data for the plot
@@ -230,8 +235,13 @@ class AirborneRadarDisplay(RadarDisplay):
             data = np.ma.masked_outside(data, vmin, vmax)
 
         # plot the data
+        if norm is not None:  # if norm is set do not override with vmin/vmax
+            vmin = vmax = None
         pm = ax.pcolormesh(
             x, z, data, vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, **kwargs)
+
+        if raster:
+            pm.set_rasterized(True)
 
         if title_flag:
             self._set_title(field, sweep, title, ax)

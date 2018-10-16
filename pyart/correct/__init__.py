@@ -28,6 +28,7 @@ Other corrections
     despeckle_field
     correct_noise_rhohv
     correct_bias
+    phase_proc_lp_gf
 
 Helper functions
 ================
@@ -35,14 +36,13 @@ Helper functions
 .. autosummary::
     :toctree: generated/
 
-    find_time_in_interp_sonde
     find_objects
 
 """
 
-from .dealias import dealias_fourdd, find_time_in_interp_sonde
+from .dealias import dealias_fourdd
 from .attenuation import calculate_attenuation
-from .phase_proc import phase_proc_lp
+from .phase_proc import phase_proc_lp, phase_proc_lp_gf
 # for backwards compatibility GateFilter available in the correct namespace
 from ..filters.gatefilter import GateFilter, moment_based_gate_filter
 from .unwrap import dealias_unwrap_phase

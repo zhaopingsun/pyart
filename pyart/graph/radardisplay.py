@@ -211,7 +211,7 @@ class RadarDisplay(object):
         data = self._get_ray_data(field, ray, mask_tuple, gatefilter)
 
         # mask the data where outside the limits
-        _mask_outside(mask_outside, data, ray_min, ray_max)
+        data = _mask_outside(mask_outside, data, ray_min, ray_max)
 
         # plot the data
         line, = ax.plot(self.ranges / 1000., data, format_str)
@@ -234,7 +234,8 @@ class RadarDisplay(object):
             colorbar_flag=True, colorbar_label=None,
             colorbar_orient='vertical', edges=True, gatefilter=None,
             filter_transitions=True, ax=None, fig=None,
-            ticks=None, ticklabs=None, **kwargs):
+            ticks=None, ticklabs=None, raster=False,
+            title_datetime_format=None, title_use_sweep_time=True, **kwargs):
         """
         Plot a PPI.
 
@@ -273,6 +274,11 @@ class RadarDisplay(object):
             Title to label plot with, None to use default title generated from
             the field and sweep parameters. Parameter is ignored if title_flag
             is False.
+        title_datetime_format : str
+            Format of datetime in the title (using strftime format).
+        title_use_sweep_time : bool
+            True for the current sweep's beginning time to be used for the title.
+            False for the radar's beginning time.
         title_flag : bool
             True to add a title to the plot, False does not add a title.
         axislabels : (str, str)
@@ -312,12 +318,17 @@ class RadarDisplay(object):
             Axis to plot on. None will use the current axis.
         fig : Figure
             Figure to add the colorbar to. None will use the current figure.
+        raster : bool
+            False by default.  Set to true to render the display as a raster
+            rather than a vector in call to pcolormesh.  Saves time in plotting
+            high resolution data over large areas.  Be sure to set the dpi
+            of the plot for your application if you save it as a vector format
+            (i.e., pdf, eps, svg).
 
         """
         # parse parameters
         ax, fig = common.parse_ax_fig(ax, fig)
-        norm, vmin, vmax = common.parse_norm_vmin_vmax(
-            norm, self._radar, field, vmin, vmax)
+        vmin, vmax = common.parse_vmin_vmax(self._radar, field, vmin, vmax)
         cmap = common.parse_cmap(cmap, field)
 
         # get data for the plot
@@ -326,14 +337,21 @@ class RadarDisplay(object):
         x, y = self._get_x_y(sweep, edges, filter_transitions)
 
         # mask the data where outside the limits
-        _mask_outside(mask_outside, data, vmin, vmax)
+        data = _mask_outside(mask_outside, data, vmin, vmax)
 
         # plot the data
+        if norm is not None:  # if norm is set do not override with vmin/vmax
+            vmin = vmax = None
         pm = ax.pcolormesh(
             x, y, data, vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, **kwargs)
 
+        if raster:
+            pm.set_rasterized(True)
+
         if title_flag:
-            self._set_title(field, sweep, title, ax)
+            self._set_title(
+                field, sweep, title, ax, datetime_format=title_datetime_format,
+                use_sweep_time=title_use_sweep_time)
 
         if axislabels_flag:
             self._label_axes_ppi(axislabels, ax)
@@ -355,7 +373,8 @@ class RadarDisplay(object):
             reverse_xaxis=None, colorbar_flag=True, colorbar_label=None,
             colorbar_orient='vertical', edges=True, gatefilter=None,
             filter_transitions=True, ax=None, fig=None,
-            ticks=None, ticklabs=None, **kwargs):
+            ticks=None, ticklabs=None, raster=False,
+            title_datetime_format=None, title_use_sweep_time=True, **kwargs):
         """
         Plot a RHI.
 
@@ -391,6 +410,11 @@ class RadarDisplay(object):
             Title to label plot with, None to use default title generated from
             the field and sweep parameters. Parameter is ignored if title_flag
             is False.
+        title_datetime_format : str
+            Format of datetime in the title (using strftime format).
+        title_use_sweep_time : bool
+            True for the current sweep's beginning time to be used for the title.
+            False for the radar's beginning time.
         title_flag : bool
             True to add a title to the plot, False does not add a title.
         axislabels : (str, str)
@@ -434,12 +458,17 @@ class RadarDisplay(object):
             Axis to plot on. None will use the current axis.
         fig : Figure
             Figure to add the colorbar to. None will use the current figure.
+        raster : bool
+            False by default.  Set to true to render the display as a raster
+            rather than a vector in call to pcolormesh.  Saves time in plotting
+            high resolution data over large areas.  Be sure to set the dpi
+            of the plot for your application if you save it as a vector format
+            (i.e., pdf, eps, svg).
 
         """
         # parse parameters
         ax, fig = common.parse_ax_fig(ax, fig)
-        norm, vmin, vmax = common.parse_norm_vmin_vmax(
-            norm, self._radar, field, vmin, vmax)
+        vmin, vmax = common.parse_vmin_vmax(self._radar, field, vmin, vmax)
         cmap = common.parse_cmap(cmap, field)
 
         # get data for the plot
@@ -448,7 +477,7 @@ class RadarDisplay(object):
         x, y, z = self._get_x_y_z(sweep, edges, filter_transitions)
 
         # mask the data where outside the limits
-        _mask_outside(mask_outside, data, vmin, vmax)
+        data = _mask_outside(mask_outside, data, vmin, vmax)
 
         # plot the data
         R = np.sqrt(x ** 2 + y ** 2) * np.sign(y)
@@ -457,11 +486,18 @@ class RadarDisplay(object):
             reverse_xaxis = np.all(R < 1.)
         if reverse_xaxis:
             R = -R
+        if norm is not None:  # if norm is set do not override with vmin/vmax
+            vmin = vmax = None
         pm = ax.pcolormesh(
             R, z, data, vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, **kwargs)
 
+        if raster:
+            pm.set_rasterized(True)
+
         if title_flag:
-            self._set_title(field, sweep, title, ax)
+            self._set_title(
+                field, sweep, title, ax, datetime_format=title_datetime_format,
+                use_sweep_time=title_use_sweep_time)
 
         if axislabels_flag:
             self._label_axes_rhi(axislabels, ax)
@@ -481,10 +517,10 @@ class RadarDisplay(object):
             title=None, title_flag=True,
             axislabels=(None, None), axislabels_flag=True,
             colorbar_flag=True, colorbar_label=None,
-            colorbar_orient='vertical', edges=True,
+            colorbar_orient='vertical', edges=True, gatefilter=None,
             filter_transitions=True, time_axis_flag=False,
             date_time_form=None, tz=None, ax=None, fig=None,
-            ticks=None, ticklabs=None, **kwargs):
+            ticks=None, ticklabs=None, raster=False, **kwargs):
         """
         Plot a VPT scan.
 
@@ -548,6 +584,9 @@ class RadarDisplay(object):
             coordinates themselved as the gate edges, resulting in a plot
             in which the last gate in each ray and the entire last ray are not
             not plotted.
+        gatefilter : GateFilter
+            GateFilter instance. None will result in no gatefilter mask being
+            applied to data.
         filter_transitions : bool
             True to remove rays where the antenna was in transition between
             sweeps from the plot.  False will include these rays in the plot.
@@ -566,16 +605,22 @@ class RadarDisplay(object):
             Axis to plot on. None will use the current axis.
         fig : Figure
             Figure to add the colorbar to. None will use the current figure.
+        raster : bool
+            False by default.  Set to true to render the display as a raster
+            rather than a vector in call to pcolormesh.  Saves time in plotting
+            high resolution data over large areas.  Be sure to set the dpi
+            of the plot for your application if you save it as a vector format
+            (i.e., pdf, eps, svg).
 
         """
         # parse parameters
         ax, fig = common.parse_ax_fig(ax, fig)
-        norm, vmin, vmax = common.parse_norm_vmin_vmax(
-            norm, self._radar, field, vmin, vmax)
+        vmin, vmax = common.parse_vmin_vmax(self._radar, field, vmin, vmax)
         cmap = common.parse_cmap(cmap, field)
 
         # get data for the plot
-        data = self._get_vpt_data(field, mask_tuple, filter_transitions)
+        data = self._get_vpt_data(
+            field, mask_tuple, filter_transitions, gatefilter)
         if edges:
             y = np.empty((self.ranges.shape[0] + 1, ), dtype=self.ranges.dtype)
             y[1:-1] = (self.ranges[:-1] + self.ranges[1:]) / 2.
@@ -594,11 +639,16 @@ class RadarDisplay(object):
             x = datetimes_from_radar(self._radar)
 
         # mask the data where outside the limits
-        _mask_outside(mask_outside, data, vmin, vmax)
+        data = _mask_outside(mask_outside, data, vmin, vmax)
 
         # plot the data
+        if norm is not None:  # if norm is set do not override with vmin/vmax
+            vmin = vmax = None
         pm = ax.pcolormesh(
             x, y, data, vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, **kwargs)
+
+        if raster:
+            pm.set_rasterized(True)
 
         if title_flag:
             self._set_vpt_title(field, title, ax)
@@ -623,7 +673,8 @@ class RadarDisplay(object):
             colorbar_flag=True, colorbar_label=None,
             colorbar_orient='vertical', edges=True, gatefilter=None,
             reverse_xaxis=None, filter_transitions=True,
-            ax=None, fig=None, ticks=None, ticklabs=None, **kwargs):
+            ax=None, fig=None, ticks=None, ticklabs=None,
+            raster=False, **kwargs):
         """
         Plot pseudo-RHI scan by extracting the vertical field associated
         with the given azimuth.
@@ -703,12 +754,17 @@ class RadarDisplay(object):
             Axis to plot on. None will use the current axis.
         fig : Figure
             Figure to add the colorbar to. None will use the current figure.
+        raster : bool
+            False by default.  Set to True to render the display as a raster
+            rather than a vector in call to pcolormesh.  Saves time in plotting
+            high resolution data over large areas.  Be sure to set the dpi
+            of the plot for your application if you save it as a vector format
+            (i.e., pdf, eps, svg).
 
         """
         # parse parameters
         ax, fig = common.parse_ax_fig(ax, fig)
-        norm, vmin, vmax = common.parse_norm_vmin_vmax(
-            norm, self._radar, field, vmin, vmax)
+        vmin, vmax = common.parse_vmin_vmax(self._radar, field, vmin, vmax)
         cmap = common.parse_cmap(cmap, field)
 
         data, x, y, z = self._get_azimuth_rhi_data_x_y_z(
@@ -716,7 +772,7 @@ class RadarDisplay(object):
             filter_transitions, gatefilter)
 
         # mask the data where outside the limits
-        _mask_outside(mask_outside, data, vmin, vmax)
+        data = _mask_outside(mask_outside, data, vmin, vmax)
 
         # plot the data
         R = np.sqrt(x ** 2 + y ** 2) * np.sign(y)
@@ -725,8 +781,13 @@ class RadarDisplay(object):
             reverse_xaxis = np.all(R < 1.)
         if reverse_xaxis:
             R = -R
+        if norm is not None:  # if norm is set do not override with vmin/vmax
+            vmin = vmax = None
         pm = ax.pcolormesh(
             R, z, data, vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, **kwargs)
+
+        if raster:
+            pm.set_rasterized(True)
 
         if title_flag:
             self._set_az_rhi_title(field, target_azimuth, title, ax)
@@ -1009,10 +1070,10 @@ class RadarDisplay(object):
         ax = common.parse_ax(ax)
         ax.set_aspect(aspect_ratio)
 
-    def _set_title(self, field, sweep, title, ax):
+    def _set_title(self, field, sweep, title, ax, datetime_format=None, use_sweep_time=True):
         """ Set the figure title using a default title. """
         if title is None:
-            ax.set_title(self.generate_title(field, sweep))
+            ax.set_title(self.generate_title(field, sweep, datetime_format, use_sweep_time))
         else:
             ax.set_title(title)
 
@@ -1116,7 +1177,7 @@ class RadarDisplay(object):
     # name generator methods #
     ##########################
 
-    def generate_filename(self, field, sweep, ext='png'):
+    def generate_filename(self, field, sweep, ext='png', datetime_format='%Y%m%d%H%M%S', use_sweep_time=False):
         """
         Generate a filename for a plot.
 
@@ -1131,6 +1192,10 @@ class RadarDisplay(object):
             Sweep plotted.
         ext : str
             Filename extension.
+        datetime_format : str
+            Format of datetime (using strftime format).
+        use_sweep_time : bool
+            If true, the current sweep's beginning time is used.
 
         Returns
         -------
@@ -1138,9 +1203,9 @@ class RadarDisplay(object):
             Filename suitable for saving a plot.
 
         """
-        return common.generate_filename(self._radar, field, sweep, ext)
+        return common.generate_filename(self._radar, field, sweep, ext, datetime_format, use_sweep_time)
 
-    def generate_title(self, field, sweep):
+    def generate_title(self, field, sweep, datetime_format=None, use_sweep_time=True):
         """
         Generate a title for a plot.
 
@@ -1150,6 +1215,10 @@ class RadarDisplay(object):
             Field plotted.
         sweep : int
             Sweep plotted.
+        datetime_format : str
+            Format of datetime (using strftime format).
+        use_sweep_time : bool
+            If true, the current sweep's beginning time is used.
 
         Returns
         -------
@@ -1157,7 +1226,7 @@ class RadarDisplay(object):
             Plot title.
 
         """
-        return common.generate_title(self._radar, field, sweep)
+        return common.generate_title(self._radar, field, sweep, datetime_format, use_sweep_time)
 
     def generate_vpt_title(self, field):
         """
@@ -1242,7 +1311,8 @@ class RadarDisplay(object):
 
         return data
 
-    def _get_vpt_data(self, field, mask_tuple, filter_transitions):
+    def _get_vpt_data(self, field, mask_tuple, filter_transitions,
+                      gatefilter):
         """ Retrieve and return vpt data from a plot function. """
         data = self.fields[field]['data']
 
@@ -1252,6 +1322,11 @@ class RadarDisplay(object):
             mdata = self.fields[mask_field]['data']
             data = np.ma.masked_where(mdata < mask_value, data)
 
+        # mask data if gatefilter provided
+        if gatefilter is not None:
+            mask_filter = gatefilter.gate_excluded
+            data = np.ma.masked_array(data, mask_filter)
+ 
         # filter out antenna transitions
         if filter_transitions and self.antenna_transition is not None:
             in_trans = self.antenna_transition

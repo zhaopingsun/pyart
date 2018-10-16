@@ -20,7 +20,7 @@ except ImportError:
     _BASEMAP_AVAILABLE = False
 
 from .radardisplay import RadarDisplay
-from .common import parse_ax_fig, parse_norm_vmin_vmax, parse_cmap
+from .common import parse_ax_fig, parse_vmin_vmax, parse_cmap
 from ..exceptions import MissingOptionalDependency
 
 
@@ -107,7 +107,7 @@ class RadarMapDisplay(RadarDisplay):
             width=None, height=None, lon_0=None, lat_0=None,
             resolution='h', shapefile=None, edges=True, gatefilter=None,
             basemap=None, filter_transitions=True, embelish=True,
-            ticks=None, ticklabs=None, **kwargs):
+            ticks=None, ticklabs=None, raster=False, alpha=None, **kwargs):
         """
         Plot a PPI volume sweep onto a geographic map.
 
@@ -215,12 +215,20 @@ class RadarMapDisplay(RadarDisplay):
         basemap: Basemap instance
             If None, create basemap instance using other keyword info.
             If not None, use the user-specifed basemap instance.
+        raster : bool
+            False by default.  Set to true to render the display as a raster
+            rather than a vector in call to pcolormesh.  Saves time in plotting
+            high resolution data over large areas.  Be sure to set the dpi
+            of the plot for your application if you save it as a vector format
+            (i.e., pdf, eps, svg).
+        alpha : float or None
+            Set the alpha tranparency of the radar plot. Useful for
+            overplotting radar over other datasets.
 
         """
         # parse parameters
         ax, fig = parse_ax_fig(ax, fig)
-        norm, vmin, vmax = parse_norm_vmin_vmax(
-            norm, self._radar, field, vmin, vmax)
+        vmin, vmax = parse_vmin_vmax(self._radar, field, vmin, vmax)
         cmap = parse_cmap(cmap, field)
         if lat_lines is None:
             lat_lines = np.arange(30, 46, 1)
@@ -253,7 +261,7 @@ class RadarMapDisplay(RadarDisplay):
             else:   # using width and height
                 # map domain determined from location of radar gates
                 if width is None:
-                    width = (x.max() - y.min()) * 1000.
+                    width = (x.max() - x.min()) * 1000.
                 if height is None:
                     height = (y.max() - y.min()) * 1000.
                 basemap = Basemap(
@@ -283,9 +291,14 @@ class RadarMapDisplay(RadarDisplay):
         # we need to convert the radar gate locations (x and y) which are in
         # km to meters as well as add the map coordiate radar location
         # which is given by self._x0, self._y0.
+        if norm is not None:  # if norm is set do not override with vmin/vmax
+            vmin = vmax = None
         pm = basemap.pcolormesh(
             self._x0 + x * 1000., self._y0 + y * 1000., data,
-            vmin=vmin, vmax=vmax, cmap=cmap, norm=norm)
+            vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, alpha=alpha)
+
+        if raster:
+            pm.set_rasterized(True)
 
         if shapefile is not None:
             basemap.readshapefile(shapefile, 'shapefile', ax=ax)

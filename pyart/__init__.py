@@ -22,11 +22,15 @@ else:
     # setting the PYART_QUIET environment variable
     _citation_text = """
 ## You are using the Python ARM Radar Toolkit (Py-ART), an open source
-## library for working with weather radar data.
+## library for working with weather radar data. Py-ART is partly
+## supported by the U.S. Department of Energy as part of the Atmospheric
+## Radiation Measurement (ARM) Climate Research Facility, an Office of
+## Science user facility.
 ##
 ## If you use this software to prepare a publication, please cite:
 ##
-##     JJ Helmus and SM Collis, JORS 2016, doi: 10.5334/jors.119 """
+##     JJ Helmus and SM Collis, JORS 2016, doi: 10.5334/jors.119
+"""
     from os import environ as _environ
     if 'PYART_QUIET' not in _environ:
         print(_citation_text)
@@ -61,33 +65,45 @@ else:
     from ._debug_info import _debug_info
 
     # test function setup based on scikit-image test function
-    import imp as _imp
     import os.path as _osp
     import functools as _functools
+    import sys as _sys
 
     try:
-        _imp.find_module('nose')
-    except ImportError:
+        if _sys.version_info[:2] >= (3, 4):
+            import importlib as _importlib
+            specs = _importlib.util.find_spec('pytest')
+            specs.loader.load_module()
+        else:
+            import imp as _imp
+            _imp.find_module('pytest')
+    except (AttributeError, ImportError) as error:
+        good_test = False
         def _test(verbose=False):
             """
-            This would invoke the Py-ART test suite, but nose couldn't be
-            imported so the test suite can not run.
+            This would invoke the Py-ART test suite, but pytest couldn't
+            be imported so the test suite can not run.
             """
-            raise ImportError("Could not load nose. Unit tests not available.")
+            raise ImportError(
+                "Could not load pytest. Unit tests not available.")
     else:
+        good_test = True
         def _test(verbose=False):
             """
             Invoke the Py-ART test suite.
             """
-            import nose
+            import pytest
             pkg_dir = _osp.abspath(_osp.dirname(__file__))
-            args = ['', pkg_dir, '--exe']
+            args = [pkg_dir, '--pyargs', 'pyart']
             if verbose:
                 args.extend(['-v', '-s'])
-            nose.run('pyart', argv=args)
+            pytest.main(args=args)
 
-    # do not use `test` as function name as this leads to a recursion problem
-    # with the nose test suite
-    test = _test
+    # Do not use `test` as function name as this leads to a recursion problem
+    # with the pytest test suite.
+    if good_test:
+        test = _test
+    else:
+        test = _test()
     test_verbose = _functools.partial(test, verbose=True)
     test_verbose.__doc__ = test.__doc__
