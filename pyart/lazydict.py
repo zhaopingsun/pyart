@@ -1,28 +1,19 @@
 """
-pyart.lazydict
-==============
-
 A dictionary-like class supporting lazy loading of specified keys.
-
-.. autosummary::
-    :toctree: generated/
-    :template: dev_template.rst
-
-    LazyLoadDict
 
 """
 
-import collections
 import itertools
+from collections.abc import MutableMapping
 
 
-class LazyLoadDict(collections.MutableMapping):
+class LazyLoadDict(MutableMapping):
     """
     A dictionary-like class supporting lazy loading of specified keys.
 
     Keys which are lazy loaded are specified using the set_lazy method.
     The callable object which produces the specified key is provided as the
-    second argument to this method.  This object gets called when the value
+    second argument to this method. This object gets called when the value
     of the key is loaded. After this initial call the results is cached
     in the traditional dictionary which is used for supplemental access to
     this key.
@@ -41,7 +32,7 @@ class LazyLoadDict(collections.MutableMapping):
         Dictionary containing key, value pairs which will be stored and
         evaluated traditionally. This dictionary referenced not copied into
         the LazyLoadDictionary and hence changed to this dictionary may change
-        the original.  If this behavior is not desired copy dic in the
+        the original. If this behavior is not desired copy dic in the
         initalization.
 
     Examples
@@ -59,19 +50,19 @@ class LazyLoadDict(collections.MutableMapping):
     """
 
     def __init__(self, dic):
-        """ initalize. """
+        """initalize."""
         self._dic = dic
         self._lazyload = {}
 
     # abstract methods
     def __setitem__(self, key, value):
-        """ Set a key which will not be stored and evaluated traditionally. """
+        """Set a key which will not be stored and evaluated traditionally."""
         self._dic[key] = value
         if key in self._lazyload:
             del self._lazyload[key]
 
     def __getitem__(self, key):
-        """ Get the value of a key, evaluating a lazy key if needed. """
+        """Get the value of a key, evaluating a lazy key if needed."""
         if key in self._lazyload:
             value = self._lazyload[key]()
             self._dic[key] = value
@@ -79,34 +70,34 @@ class LazyLoadDict(collections.MutableMapping):
         return self._dic[key]
 
     def __delitem__(self, key):
-        """ Remove a lazy or traditional key from the dictionary. """
+        """Remove a lazy or traditional key from the dictionary."""
         if key in self._lazyload:
             del self._lazyload[key]
         else:
             del self._dic[key]
 
     def __iter__(self):
-        """ Iterate over all lazy and traditional keys. """
+        """Iterate over all lazy and traditional keys."""
         return itertools.chain(self._dic.copy(), self._lazyload.copy())
 
     def __len__(self):
-        """ Return the number of traditional and lazy keys. """
+        """Return the number of traditional and lazy keys."""
         return len(self._dic) + len(self._lazyload)
 
     # additional class to mimic dict behavior
     def __str__(self):
-        """ Return a string representation of the object. """
+        """Return a string representation of the object."""
         if len(self._dic) == 0 or len(self._lazyload) == 0:
-            seperator = ''
+            seperator = ""
         else:
-            seperator = ', '
+            seperator = ", "
         lazy_reprs = [(repr(k), repr(v)) for k, v in self._lazyload.items()]
-        lazy_strs = ['%s: LazyLoad(%s)' % r for r in lazy_reprs]
-        lazy_str = ", ".join(lazy_strs) + '}'
+        lazy_strs = ["{}: LazyLoad({})".format(*r) for r in lazy_reprs]
+        lazy_str = ", ".join(lazy_strs) + "}"
         return str(self._dic)[:-1] + seperator + lazy_str
 
     def has_key(self, key):
-        """ True if dictionary has key, else False. """
+        """True if dictionary has key, else False."""
         return key in self
 
     def copy(self):
@@ -123,7 +114,7 @@ class LazyLoadDict(collections.MutableMapping):
 
     # lazy dictionary specific methods
     def set_lazy(self, key, value_callable):
-        """ Set a lazy key to load from a callable object. """
+        """Set a lazy key to load from a callable object."""
         if key in self._dic:
             del self._dic[key]
         self._lazyload[key] = value_callable

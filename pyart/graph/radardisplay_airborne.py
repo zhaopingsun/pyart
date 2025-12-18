@@ -1,24 +1,14 @@
 """
-pyart.graph.radardisplay_airborne
-=================================
-
 Class for creating plots from Airborne Radar objects.
-
-.. autosummary::
-    :toctree: generated/
-    :template: dev_template.rst
-
-    AirborneRadarDisplay
 
 """
 
 import numpy as np
 
-from .radardisplay import RadarDisplay
-from . import common
-from ..core.transforms import antenna_to_cartesian
-from ..core.transforms import antenna_to_cartesian_track_relative
 from ..core import transforms
+from ..core.transforms import antenna_to_cartesian, antenna_to_cartesian_track_relative
+from . import common
+from .radardisplay import RadarDisplay
 
 
 class AirborneRadarDisplay(RadarDisplay):
@@ -76,22 +66,22 @@ class AirborneRadarDisplay(RadarDisplay):
     """
 
     def __init__(self, radar, shift=(0.0, 0.0)):
-        """ Initialize the object. """
-        self.fixed_angle = radar.fixed_angle['data'][0]
-        self.rotation = radar.rotation['data']
-        self.roll = radar.roll['data']
-        self.drift = radar.drift['data']
-        self.tilt = radar.tilt['data']
-        self.heading = radar.heading['data']
-        self.pitch = radar.pitch['data']
-        self.altitude = radar.altitude['data']
-        super(AirborneRadarDisplay, self).__init__(radar, shift)
+        """Initialize the object."""
+        self.fixed_angle = radar.fixed_angle["data"][0]
+        self.rotation = radar.rotation["data"]
+        self.roll = radar.roll["data"]
+        self.drift = radar.drift["data"]
+        self.tilt = radar.tilt["data"]
+        self.heading = radar.heading["data"]
+        self.pitch = radar.pitch["data"]
+        self.altitude = radar.altitude["data"]
+        super().__init__(radar, shift)
 
         # radar location in latitude and longitude
-        middle_lat = int(radar.latitude['data'].shape[0] / 2)
-        middle_lon = int(radar.longitude['data'].shape[0] / 2)
-        lat = float(radar.latitude['data'][middle_lat])
-        lon = float(radar.longitude['data'][middle_lon])
+        middle_lat = int(radar.latitude["data"].shape[0] / 2)
+        middle_lon = int(radar.longitude["data"].shape[0] / 2)
+        lat = float(radar.latitude["data"][middle_lat])
+        lon = float(radar.longitude["data"][middle_lon])
         self.loc = (lat, lon)
 
     ####################
@@ -103,7 +93,7 @@ class AirborneRadarDisplay(RadarDisplay):
         Create a plot appropiate for the radar.
 
         This function calls the plotting function corresponding to
-        the scan_type of the radar.  Additional keywords can be passed to
+        the scan_type of the radar. Additional keywords can be passed to
         customize the plot, see the appropiate plot function for the
         allowed keywords.
 
@@ -120,24 +110,44 @@ class AirborneRadarDisplay(RadarDisplay):
         plot_sweep_grid : Plot a RHI or VPT scan
 
         """
-        if self.scan_type == 'ppi':
+        if self.scan_type == "ppi":
             self.plot_ppi(field, sweep, **kwargs)
-        elif self.scan_type == 'rhi':
+        elif self.scan_type == "rhi":
             self.plot_sweep_grid(field, sweep, **kwargs)
-        elif self.scan_type == 'vpt':
+        elif self.scan_type == "vpt":
             self.plot_sweep_grid(field, sweep, **kwargs)
         else:
-            raise ValueError('unknown scan_type % s' % (self.scan_type))
+            raise ValueError(f"unknown scan_type {self.scan_type: }")
         return
 
     def plot_sweep_grid(
-            self, field, sweep=0, mask_tuple=None,
-            vmin=None, vmax=None, cmap=None, norm=None, mask_outside=False,
-            title=None, title_flag=True,
-            axislabels=(None, None), axislabels_flag=True,
-            colorbar_flag=True, colorbar_label=None,
-            colorbar_orient='vertical', edges=True, filter_transitions=True,
-            ax=None, fig=None, gatefilter=None, raster=False, **kwargs):
+        self,
+        field,
+        sweep=0,
+        ignoreTilt=False,
+        mask_tuple=None,
+        vmin=None,
+        vmax=None,
+        cmap=None,
+        norm=None,
+        mask_outside=False,
+        title=None,
+        title_flag=True,
+        axislabels=(None, None),
+        axislabels_flag=True,
+        colorbar_flag=True,
+        colorbar_label=None,
+        colorbar_orient="vertical",
+        edges=True,
+        filter_transitions=True,
+        ax=None,
+        fig=None,
+        gatefilter=None,
+        raster=False,
+        ticks=None,
+        ticklabs=None,
+        **kwargs,
+    ):
         """
         Plot a sweep as a grid.
 
@@ -152,6 +162,13 @@ class AirborneRadarDisplay(RadarDisplay):
 
         Other Parameters
         ----------------
+        ignoreTilt : bool
+            True to ignore tilt angle when running the
+            antenna_to_cartesian_track_relative coordinate transformation (by
+            setting tilt angle to 0), effectively plotting data relative to
+            slant range (the same plotting method utilized by the NCAR
+            soloii/3 software). False (default) plots relative to the aircraft
+            longitudinal axis.
         mask_tuple : (str, float)
             Tuple containing the field name and value below which to mask
             field prior to plotting, for example to mask all data where
@@ -163,14 +180,14 @@ class AirborneRadarDisplay(RadarDisplay):
             Luminance maximum value, None for default value.
             Parameter is ignored is norm is not None.
         norm : Normalize or None, optional
-            matplotlib Normalize instance used to scale luminance data.  If not
-            None the vmax and vmin parameters are ignored.  If None, vmin and
+            matplotlib Normalize instance used to scale luminance data. If not
+            None the vmax and vmin parameters are ignored. If None, vmin and
             vmax are used for luminance scaling.
         cmap : str or None
             Matplotlib colormap name. None will use the default colormap for
             the field being plotted as specified by the Py-ART configuration.
         mask_outside : bool
-            True to mask data outside of vmin, vmax.  False performs no
+            True to mask data outside of vmin, vmax. False performs no
             masking.
         title : str
             Title to label plot with, None to use default title generated from
@@ -179,13 +196,13 @@ class AirborneRadarDisplay(RadarDisplay):
         title_flag : bool
             True to add a title to the plot, False does not add a title.
         axislabels : (str, str)
-            2-tuple of x-axis, y-axis labels.  None for either label will use
-            the default axis label.  Parameter is ignored if axislabels_flag is
+            2-tuple of x-axis, y-axis labels. None for either label will use
+            the default axis label. Parameter is ignored if axislabels_flag is
             False.
         axislabels_flag : bool
             True to add label the axes, False does not label the axes.
         colorbar_flag : bool
-            True to add a colorbar with label to the axis.  False leaves off
+            True to add a colorbar with label to the axis. False leaves off
             the colorbar.
         colorbar_label : str
             Colorbar label, None will use a default label generated from the
@@ -195,7 +212,7 @@ class AirborneRadarDisplay(RadarDisplay):
         edges : bool
             True will interpolate and extrapolate the gate edges from the
             range, azimuth and elevations in the radar, treating these
-            as specifying the center of each gate.  False treats these
+            as specifying the center of each gate. False treats these
             coordinates themselved as the gate edges, resulting in a plot
             in which the last gate in each ray and the entire last ray are not
             plotted.
@@ -204,7 +221,7 @@ class AirborneRadarDisplay(RadarDisplay):
             applied to data.
         filter_transitions : bool
             True to remove rays where the antenna was in transition between
-            sweeps from the plot.  False will include these rays in the plot.
+            sweeps from the plot. False will include these rays in the plot.
             No rays are filtered when the antenna_transition attribute of the
             underlying radar is not present.
         ax : Axis
@@ -212,11 +229,15 @@ class AirborneRadarDisplay(RadarDisplay):
         fig : Figure
             Figure to add the colorbar to. None will use the current figure.
         raster : bool
-            False by default.  Set to true to render the display as a raster
-            rather than a vector in call to pcolormesh.  Saves time in plotting
-            high resolution data over large areas.  Be sure to set the dpi
+            False by default. Set to true to render the display as a raster
+            rather than a vector in call to pcolormesh. Saves time in plotting
+            high resolution data over large areas. Be sure to set the dpi
             of the plot for your application if you save it as a vector format
             (i.e., pdf, eps, svg).
+        ticks : array
+            Colorbar custom tick label locations.
+        ticklabs : array
+            Colorbar custom tick labels.
 
         """
         # parse parameters
@@ -225,9 +246,8 @@ class AirborneRadarDisplay(RadarDisplay):
         cmap = common.parse_cmap(cmap, field)
 
         # get data for the plot
-        data = self._get_data(
-            field, sweep, mask_tuple, filter_transitions, gatefilter)
-        x, z = self._get_x_z(sweep, edges, filter_transitions)
+        data = self._get_data(field, sweep, mask_tuple, filter_transitions, gatefilter)
+        x, z = self._get_x_z(sweep, edges, filter_transitions, ignoreTilt=ignoreTilt)
 
         # mask the data where outside the limits
         if mask_outside:
@@ -238,7 +258,8 @@ class AirborneRadarDisplay(RadarDisplay):
         if norm is not None:  # if norm is set do not override with vmin/vmax
             vmin = vmax = None
         pm = ax.pcolormesh(
-            x, z, data, vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, **kwargs)
+            x, z, data, vmin=vmin, vmax=vmax, cmap=cmap, norm=norm, **kwargs
+        )
 
         if raster:
             pm.set_rasterized(True)
@@ -256,29 +277,43 @@ class AirborneRadarDisplay(RadarDisplay):
         # colorbar options
         if colorbar_flag:
             self.plot_colorbar(
-                mappable=pm, label=colorbar_label, orient=colorbar_orient,
-                field=field, ax=ax, fig=fig)
+                mappable=pm,
+                label=colorbar_label,
+                orient=colorbar_orient,
+                field=field,
+                ax=ax,
+                fig=fig,
+                ticks=ticks,
+                ticklabs=ticklabs,
+            )
 
     def label_xaxis_x(self, ax=None):
-        """ Label the xaxis with the default label for x units. """
+        """Label the xaxis with the default label for x units."""
         ax = common.parse_ax(ax)
-        ax.set_xlabel('Horizontal distance from ' + self.origin + ' (km)')
+        ax.set_xlabel("Horizontal distance from " + self.origin + " (km)")
 
     def label_yaxis_y(self, ax=None):
-        """ Label the yaxis with the default label for y units. """
+        """Label the yaxis with the default label for y units."""
         ax = common.parse_ax(ax)
-        ax.set_ylabel('Horizontal distance from ' + self.origin + ' (km)')
+        ax.set_ylabel("Horizontal distance from " + self.origin + " (km)")
 
     def label_yaxis_z(self, ax=None):
-        """ Label the yaxis with the default label for z units. """
+        """Label the yaxis with the default label for z units."""
         ax = common.parse_ax(ax)
-        ax.set_ylabel('Distance Above ' + self.origin + '  (km)')
+        ax.set_ylabel("Distance Above " + self.origin + "  (km)")
 
-    def _get_x_y_z(self, sweep, edges, filter_transitions):
-        """ Retrieve and return x, y, and z coordinate in km. """
+    def _get_x_z(self, sweep, edges, filter_transitions, ignoreTilt=False):
+        """Retrieve and return x and z coordinate in km."""
+        x, _, z = self._get_x_y_z(
+            sweep, edges, filter_transitions, ignoreTilt=ignoreTilt
+        )
+        return x, z
+
+    def _get_x_y_z(self, sweep, edges, filter_transitions, ignoreTilt=False):
+        """Retrieve and return x, y, and z coordinate in km."""
         sweep_slice = self._radar.get_slice(sweep)
 
-        if self._radar.metadata['platform_type'] == 'aircraft_belly':
+        if self._radar.metadata["platform_type"] == "aircraft_belly":
             if filter_transitions and self.antenna_transition is not None:
                 in_trans = self.antenna_transition[sweep_slice]
                 ranges = self.ranges
@@ -293,14 +328,13 @@ class AirborneRadarDisplay(RadarDisplay):
                 if len(ranges) != 1:
                     ranges = transforms._interpolate_range_edges(ranges)
                 if len(elevations) != 1:
-                    elevations = transforms._interpolate_elevation_edges(
-                        elevations)
+                    elevations = transforms._interpolate_elevation_edges(elevations)
                 if len(azimuths) != 1:
                     azimuths = transforms._interpolate_azimuth_edges(azimuths)
 
             rg, azg = np.meshgrid(ranges, azimuths)
             rg, eleg = np.meshgrid(ranges, elevations)
-            x, y, z = antenna_to_cartesian(rg / 1000., azg, eleg)
+            x, y, z = antenna_to_cartesian(rg / 1000.0, azg, eleg)
 
         else:
             if filter_transitions and self.antenna_transition is not None:
@@ -319,6 +353,9 @@ class AirborneRadarDisplay(RadarDisplay):
                 tilt = self.tilt[sweep_slice]
                 pitch = self.pitch[sweep_slice]
 
+            if ignoreTilt:
+                tilt = tilt * 0.0
+
             if edges:
                 if len(ranges) != 1:
                     ranges = transforms._interpolate_range_edges(ranges)
@@ -336,7 +373,8 @@ class AirborneRadarDisplay(RadarDisplay):
             rg, pitchg = np.meshgrid(ranges, pitch)
 
             x, y, z = antenna_to_cartesian_track_relative(
-                rg / 1000.0, rotg, rollg, driftg, tiltg, pitchg)
+                rg / 1000.0, rotg, rollg, driftg, tiltg, pitchg
+            )
 
         x = (x + self.shift[0]) / 1000.0
         y = (y + self.shift[1]) / 1000.0

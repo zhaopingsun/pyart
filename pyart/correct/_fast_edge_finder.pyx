@@ -1,20 +1,12 @@
 """
-pyart.correct._fast_edge_finder
-===============================
-
 Cython routine for quickly finding edges between connected regions.
-
-.. autosummary::
-    :toctree: generated/
-
-    _fast_edge_finder
 
 """
 
 import numpy as np
 
-cimport numpy as np
 cimport cython
+cimport numpy as np
 
 
 @cython.boundscheck(False)

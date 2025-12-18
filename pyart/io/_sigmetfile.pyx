@@ -1,37 +1,15 @@
 """
-pyart.io._sigmetfile
-====================
-
 A class and supporting functions for reading Sigmet (raw format) files.
 
-.. autosummary::
-    :toctree: generated/
-
-    SigmetFile
-    convert_sigmet_data
-    bin2_to_angle
-    bin4_to_angle
-    _data_types_from_mask
-    _is_bit_set
-    _parse_ray_headers
-    _unpack_structure
-    _unpack_key
-    _unpack_ingest_data_headers
-    _unpack_ingest_data_header
-    _unpack_raw_prod_bhdr
-    _unpack_product_hdr
-    _unpack_ingest_header
-
 """
-from __future__ import print_function
-
-import struct
 import datetime
+import struct
 import warnings
 
 import numpy as np
-cimport numpy as np
+
 cimport cython
+cimport numpy as np
 
 RECORD_SIZE = 6144      # Raw product file blocked into 6144 byte records
 
@@ -235,7 +213,12 @@ cdef class SigmetFile:
             prt_value = 1. / self.product_hdr['product_end']['prf']
             nyquist = wavelength_cm / (10000.0 * 4.0 * prt_value)
             data['WIDTH'] *= nyquist
-
+        # scale 1-byte KDP by the wavelength
+        if 'KDP' in self.data_type_names:
+            # The IRIS Programmer's Manual indicates 1-byte differential phase format
+            # data should be divided by the wavelength in cm (section 4.3.12).
+            wavelength_cm = self.product_hdr['product_end']['wavelength']
+            data['KDP'] /= (wavelength_cm / 100.0)
         return data, metadata
 
     def _get_sweep(self, full_xhdr=False, raw_data=False):
@@ -300,7 +283,7 @@ cdef class SigmetFile:
         # get the raw data ray-by-ray
         for ray_i in xrange(nrays):
             if self.debug:
-                print("Reading ray: %i of %i" % (ray_i, nrays), end='')
+                print("Reading ray: %i of %i" % (ray_i, nrays))
                 print("self._rbuf_pos is", self._rbuf_pos)
             if self._get_ray(nbins, raw_sweep_data[ray_i]):
                 return None, None, None
@@ -556,13 +539,13 @@ SIGMET_DATA_TYPES = {
     72: 'DBTE16',       # Total Power Enhanced
     73: 'DBZE8',
     74: 'DBZE16',       # Clutter Corrected Reflectivity Enhanced
+    75: 'PMI8',
+    76: 'PMI16',
+    77: 'LOG8',
+    78: 'LOG16',
+    79: 'CSP8',
+    80: 'CSP16',
     # Uknown fields, do not know internal names, some may be user defined.
-    75: 'UNKNOWN_75',
-    76: 'UNKNOWN_76',
-    77: 'UNKNOWN_77',
-    78: 'UNKNOWN_78',
-    79: 'UNKNOWN_79',
-    80: 'UNKNOWN_80',
     81: 'UNKNOWN_81',
     82: 'UNKNOWN_82',
     83: 'UNKNOWN_83',
@@ -619,7 +602,7 @@ SIGMET_DATA_TYPES = {
 def convert_sigmet_data(data_type, data, nbins):
     """ Convert sigmet data. """
     out = np.empty_like(data, dtype='float32')
-    mask = np.zeros_like(data, dtype=np.bool8)
+    mask = np.zeros_like(data, dtype='bool')
 
     data_type_name = SIGMET_DATA_TYPES[data_type]
 
@@ -639,6 +622,8 @@ def convert_sigmet_data(data_type, data, nbins):
         'SNR16',    # Signal to noise ratio, 2-byte
         'DBTE16',   # Total Power Enhanced, 2-byte
         'DBZE16',   # Clutter corrected reflectivity enhanced, 2-byte
+        'LOG16',    # Log receiver signal-to-noise ratio (dB), 2-byte
+        'CSP16',    # Doppler channel clutter power ratio of dBT to -dBZ, 2-byte
     ]
 
     like_sqi = [
@@ -646,6 +631,7 @@ def convert_sigmet_data(data_type, data, nbins):
         'RHOV',     # " "
         'RHOHV',    # 1-byte RhoHV Format, section 4.3.23
         'SQI',      # 1-byte Signal Quality Index Format, section 4.3.26
+        'PMI8',      # 1-byte Polarimetric Meteo Index, section 4.4.28
     ]
 
     like_sqi2 = [
@@ -653,6 +639,7 @@ def convert_sigmet_data(data_type, data, nbins):
         'RHOH2',    # " "
         'RHOHV2',   # 2-byte RhoHV Format, section 4.3.24
         'SQI2',     # 2-byte Signal Quality Index Format, section 4.3.27
+        'PMI16',    # 2-byte Polarimetric Meteo Index, section 4.4.29
     ]
 
     like_dbt = [
@@ -663,6 +650,8 @@ def convert_sigmet_data(data_type, data, nbins):
         'SNR8',     # Signal to noise ratio, 1-byte
         'DBTE8',    # Total power enhanced, 1-byte
         'DBZE8',    # Clutter corrected reflectivity enhanced, 1-byte
+        'LOG8',     # Log receiver signal-to-noise ratio (dB), 1-byte
+        'CSP8',     # Doppler channel clutter power ratio of dBT to -dBZ, 1-byte
     ]
 
     if data_type_name in like_dbt2:
@@ -730,6 +719,13 @@ def convert_sigmet_data(data_type, data, nbins):
             # this is done in the get_data method of the SigmetFile class.
             out[:] = (ndata - 128.) / 127.
             mask[ndata == 0] = True
+
+        elif data_type_name == 'VELC':
+            # VELC, 3, Velocity (1 byte)
+            # 1-byte Corrected Velocity Format, section 4.4.42
+            out[:] = (ndata - 128.) / 127. *75.
+            mask[ndata == 0] = True
+            mask[ndata == 255] = True
 
         elif data_type_name == 'WIDTH':
             # WIDTH, 4, Width (1 byte)

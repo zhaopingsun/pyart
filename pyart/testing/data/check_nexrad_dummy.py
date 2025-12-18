@@ -1,13 +1,10 @@
 # check that the dummy NEXRAD file is simlar to non-dummy file.
 
-from __future__ import print_function
-import numpy as np
-from numpy.testing import assert_array_equal, assert_allclose
 
 import pyart
 
-NEXRAD_FILE = 'KATX20130717_195021_V06'
-OUTPUT_FILE = 'KATX20130717_195021_V06_DUMMY'
+NEXRAD_FILE = "KATX20130717_195021_V06"
+OUTPUT_FILE = "KATX20130717_195021_V06_DUMMY"
 
 
 def test_dummy_similar():
@@ -17,7 +14,6 @@ def test_dummy_similar():
 
 
 def radars_similar(r1, r2):
-
     ###########################
     # Attribute that are None #
     ###########################
@@ -30,13 +26,13 @@ def radars_similar(r1, r2):
     #########################
     # Dictionary attributes #
     #########################
-    #assert dics_similar(r1.time, r2.time)          # start time mismatch
+    # assert dics_similar(r1.time, r2.time)          # start time mismatch
     assert dics_similar(r1.range, r2.range)
-    #assert dics_similar(r1.metadata, r2.metadata)  # DO not match
+    # assert dics_similar(r1.metadata, r2.metadata)  # DO not match
 
     assert dics_similar(r1.latitude, r2.latitude)
     assert dics_similar(r1.longitude, r2.longitude)
-    #assert dics_similar(r1.altitude, r2.altitude)  # differ by 10 meters
+    # assert dics_similar(r1.altitude, r2.altitude)  # differ by 10 meters
 
     assert dics_similar(r1.sweep_number, r2.sweep_number)
     assert dics_similar(r1.sweep_mode, r2.sweep_mode)
@@ -68,27 +64,23 @@ def radars_similar(r1, r2):
         print(field)
         assert dics_similar(r1.fields[field], r2.fields[field])
 
-    #radar1.fields
+    # radar1.fields
     return True
 
 
 def dics_similar(dic1, dic2):
-    """ Determine if two dictionaries are similar. """
+    """Determine if two dictionaries are similar."""
     if dic1 is None:
         if dic2 is None:
             return True
         else:
             return False
 
-    # all keys in both dictionaries
-    print(dic1.keys())
-    print(dic2.keys())
     assert set(dic1.keys()).difference(dic2.keys()) == set()
 
     for key in dic1.keys():
-        if key == 'data':
+        if key == "data":
             continue
-        print(key, dic1[key], dic2[key])
         assert dic1[key] == dic2[key]
 
     # do not check data, since it should not match

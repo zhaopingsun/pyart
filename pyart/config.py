@@ -1,32 +1,15 @@
 """
-pyart.config
-============
-
 Py-ART configuration.
-
-.. autosummary::
-    :toctree: generated/
-
-    load_config
-    get_metadata
-    get_fillvalue
-    get_field_name
-    get_field_colormap
-    get_field_limits
-    get_field_mapping
-    FileMetadata
 
 """
 
 import os
-import sys
 import traceback
 import warnings
 
-
 # the path to the default configuration file
 _dirname = os.path.dirname(__file__)
-_DEFAULT_CONFIG_FILE = os.path.join(_dirname, 'default_config.py')
+_DEFAULT_CONFIG_FILE = os.path.join(_dirname, "default_config.py")
 
 
 def load_config(filename=None):
@@ -34,9 +17,9 @@ def load_config(filename=None):
     Load a Py-ART configuration from a config file.
 
     The default values for a number of Py-ART parameters and metadata is
-    controlled by a single Python configuration file.  An self-descriping
+    controlled by a single Python configuration file. An self-descriping
     example of this file can be found in the Py-ART source directory named
-    **default_config.py**.  These defaults can modified by setting the
+    **default_config.py**. These defaults can modified by setting the
     environmental variable `PYART_CONFIG` to point to a new configuration
     file. If this variable is not set then the settings contained in
     the **default_config.py** file are used.
@@ -58,7 +41,7 @@ def load_config(filename=None):
     Parameters
     ----------
     filename : str
-        Filename of configuration file.  If None the default configuration
+        Filename of configuration file. If None the default configuration
         file is loaded from the Py-ART source code directory.
 
     """
@@ -75,36 +58,52 @@ def load_config(filename=None):
     global _DEFAULT_FIELD_COLORMAP
     global _DEFAULT_FIELD_LIMITS
 
-    if sys.version_info[:2] >= (3, 4):
-        from importlib.machinery import SourceFileLoader
-        cfile = SourceFileLoader('metadata_config', filename).load_module()
-    else:
+    try:
+        from importlib.util import module_from_spec, spec_from_file_location
+
+        spec = spec_from_file_location("metadata_config", filename)
+        # assert spec is not None
+        cfile = module_from_spec(spec)
+        # assert spec.loader is not None
+        spec.loader.exec_module(cfile)
+
+    except ImportError:
         import imp
-        cfile = imp.load_source('metadata_config', filename)
+
+        cfile = imp.load_source("metadata_config", filename)
+
     _DEFAULT_METADATA = cfile.DEFAULT_METADATA
     _FILE_SPECIFIC_METADATA = cfile.FILE_SPECIFIC_METADATA
     _FIELD_MAPPINGS = cfile.FIELD_MAPPINGS
     _FILL_VALUE = cfile.FILL_VALUE
     _DEFAULT_FIELD_NAMES = cfile.DEFAULT_FIELD_NAMES
-    _DEFAULT_FIELD_COLORMAP = cfile.DEFAULT_FIELD_COLORMAP
-    _DEFAULT_FIELD_LIMITS = cfile.DEFAULT_FIELD_LIMITS
+
+    # These last two are optional
+    try:
+        _DEFAULT_FIELD_COLORMAP = cfile.DEFAULT_FIELD_COLORMAP
+        _DEFAULT_FIELD_LIMITS = cfile.DEFAULT_FIELD_LIMITS
+    except:
+        pass
     return
+
 
 # load the configuration from the enviromental parameter if it is set
 # if the load fails issue a warning and load the default config.
-_config_file = os.environ.get('PYART_CONFIG')
+_config_file = os.environ.get("PYART_CONFIG")
 if _config_file is None:
     load_config(_DEFAULT_CONFIG_FILE)
 else:
     try:
         load_config(_config_file)
     except:
-        msg = ("\nLoading configuration from PYART_CONFIG enviromental "
-               "variable failed:"
-               "\n--- START IGNORED TRACEBACK --- \n" +
-               traceback.format_exc() +
-               "\n --- END IGNORED TRACEBACK ---"
-               "\nLoading default configuration")
+        msg = (
+            "\nLoading configuration from PYART_CONFIG enviromental "
+            "variable failed:"
+            "\n--- START IGNORED TRACEBACK --- \n"
+            + traceback.format_exc()
+            + "\n --- END IGNORED TRACEBACK ---"
+            "\nLoading default configuration"
+        )
         warnings.warn(msg)
         load_config(_DEFAULT_CONFIG_FILE)
 
@@ -143,31 +142,34 @@ def get_field_colormap(field):
     if field in _DEFAULT_FIELD_COLORMAP:
         return _DEFAULT_FIELD_COLORMAP[field]
     else:
-        import matplotlib.cm
-        return matplotlib.cm.get_cmap().name
+        import matplotlib
+
+        # Use the default matplotlib colormap
+        return matplotlib.colormaps.get_cmap("Spectral_r").name
 
 
 def get_field_limits(field, container=None, selection=0):
     """
     Return the data limits from the configuration file for a given field,
-    radar and sweep
+    radar and sweep.
 
     Parameters
     ----------
-    field: str
+    field : str
         Field name.
-    container: Radar, Grid or None
+    container : Radar, Grid or None, optional
         This is an optional parameter that will be use to get informations
         related to the field, like for instace nyquist velocity.
-    selection: int
-        selection of the data in the container, case container is a Radar this
-        is the sweep to be considered
+    selection : int, optional
+        Selection of the data in the container, case container is a Radar this
+        is the sweep to be considered.
 
     Returns
     -------
     vmin, vmax: 2-tuplet of float
         Minimun and Maximun teorical value for field, if field is not
         in the configuration file returns (None, None).
+
     """
     if field in _DEFAULT_FIELD_LIMITS:
         limits = _DEFAULT_FIELD_LIMITS[field]
@@ -191,11 +193,12 @@ def get_field_mapping(filetype):
     -------
     field_mappings : dict
         Dictionary mapping field names from one type to another.
+
     """
     return _FIELD_MAPPINGS[filetype].copy()
 
 
-class FileMetadata():
+class FileMetadata:
     """
     A class for accessing metadata needed when reading files.
 
@@ -211,15 +214,23 @@ class FileMetadata():
         True to keep the field names in the file.
     exclude_fields : list of strings
         Fields to exclude during readings.
+    include_fields : list of strings
+        Fields to include during readings.
 
     """
 
-    def __init__(self, filetype, field_names=None, additional_metadata=None,
-                 file_field_names=False, exclude_fields=None):
+    def __init__(
+        self,
+        filetype,
+        field_names=None,
+        additional_metadata=None,
+        file_field_names=False,
+        exclude_fields=None,
+        include_fields=None,
+    ):
         """
         Initialize.
         """
-
         # parse filetype parameter
         if filetype in _FILE_SPECIFIC_METADATA:
             self._file_specific_metadata = _FILE_SPECIFIC_METADATA[filetype]
@@ -247,6 +258,11 @@ class FileMetadata():
         else:
             self._exclude_fields = exclude_fields
 
+        if include_fields is None:
+            self._include_fields = None
+        else:
+            self._include_fields = include_fields
+
     def get_metadata(self, p):
         """
         Retrieve metadata for a parameter `p`.
@@ -260,8 +276,8 @@ class FileMetadata():
         -------
         dic : dict
             Dictionary of metadata for the parameter.
-        """
 
+        """
         # additional_metadata is queued first
         if p in self._additional_metadata:
             return self._additional_metadata[p].copy()
@@ -305,9 +321,14 @@ class FileMetadata():
         elif file_field_name in self._field_names:
             field_name = self._field_names[file_field_name]
         else:
-            return None     # field is not mapped
+            return None  # field is not mapped
 
         if field_name in self._exclude_fields:
-            return None     # field is excluded
+            return None  # field is excluded
+        elif self._include_fields is not None:
+            if field_name not in self._include_fields:
+                return None
+            else:
+                return field_name
         else:
             return field_name
